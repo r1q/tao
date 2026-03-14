@@ -15,6 +15,7 @@ use std::{
   },
   time::Instant,
 };
+use std::panic::{catch_unwind, AssertUnwindSafe};
 
 use objc2::{msg_send, rc::Retained, runtime::AnyObject as Object};
 use objc2_app_kit::{NSApp, NSApplication, NSApplicationActivationPolicy, NSWindow};
@@ -285,18 +286,19 @@ impl AppState {
     apply_activation_policy(app_delegate);
 
     if let Some(mtm) = MainThreadMarker::new() {
-      unsafe {
-        let ns_app = NSApp(mtm);
-        window_activation_hack(&ns_app);
-        let ignore = get_aux_state_mut(app_delegate).activate_ignoring_other_apps;
-        #[allow(deprecated)]
-        ns_app.activateIgnoringOtherApps(ignore);
-
-        let dock_visible = get_aux_state_mut(app_delegate).dock_visibility;
-        if !dock_visible {
-          set_dock_visibility(app_delegate, dock_visible);
+      let _ = catch_unwind(AssertUnwindSafe(|| {
+        unsafe {
+          let ns_app = NSApp(mtm);
+          window_activation_hack(&ns_app);
+          let ignore = get_aux_state_mut(app_delegate).activate_ignoring_other_apps;
+          #[allow(deprecated)]
+          ns_app.activateIgnoringOtherApps(ignore);
+          let dock_visible = get_aux_state_mut(app_delegate).dock_visibility;
+          if !dock_visible {
+            set_dock_visibility(app_delegate, dock_visible);
+          }
         }
-      }
+      }));
     }
     HANDLER.set_ready();
     HANDLER.waker().start();
