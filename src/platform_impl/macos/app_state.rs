@@ -283,7 +283,7 @@ impl AppState {
   }
 
   pub fn launched(app_delegate: &Object) {
-    let _ = catch_unwind(AssertUnwindSafe(|| {
+    let ok = catch_unwind(AssertUnwindSafe(|| {
       apply_activation_policy(app_delegate);
       if let Some(mtm) = MainThreadMarker::new() {
         unsafe {
@@ -299,6 +299,19 @@ impl AppState {
         }
       }
     }));
+    // If the main path panicked (e.g. on macOS 26), do minimal activation so the window shows.
+    if ok.is_err() {
+      let _ = catch_unwind(AssertUnwindSafe(|| {
+        if let Some(mtm) = MainThreadMarker::new() {
+          unsafe {
+            let ns_app = NSApp(mtm);
+            ns_app.setActivationPolicy(NSApplicationActivationPolicy::Regular);
+            #[allow(deprecated)]
+            ns_app.activateIgnoringOtherApps(true);
+          }
+        }
+      }));
+    }
     HANDLER.set_ready();
   }
 
