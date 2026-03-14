@@ -300,12 +300,6 @@ impl AppState {
       }
     }));
     HANDLER.set_ready();
-    HANDLER.waker().start();
-    HANDLER.set_in_callback(true);
-    HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::NewEvents(
-      StartCause::Init,
-    )));
-    HANDLER.set_in_callback(false);
   }
 
   pub fn open_urls(urls: Vec<url::Url>) {
