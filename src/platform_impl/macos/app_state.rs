@@ -283,10 +283,9 @@ impl AppState {
   }
 
   pub fn launched(app_delegate: &Object) {
-    apply_activation_policy(app_delegate);
-
-    if let Some(mtm) = MainThreadMarker::new() {
-      let _ = catch_unwind(AssertUnwindSafe(|| {
+    let _ = catch_unwind(AssertUnwindSafe(|| {
+      apply_activation_policy(app_delegate);
+      if let Some(mtm) = MainThreadMarker::new() {
         unsafe {
           let ns_app = NSApp(mtm);
           window_activation_hack(&ns_app);
@@ -298,8 +297,8 @@ impl AppState {
             set_dock_visibility(app_delegate, dock_visible);
           }
         }
-      }));
-    }
+      }
+    }));
     HANDLER.set_ready();
     HANDLER.waker().start();
     HANDLER.set_in_callback(true);
