@@ -284,19 +284,20 @@ impl AppState {
   pub fn launched(app_delegate: &Object) {
     apply_activation_policy(app_delegate);
 
-    unsafe {
-      let mtm = MainThreadMarker::new().unwrap();
-      let ns_app = NSApp(mtm);
-      window_activation_hack(&ns_app);
-      let ignore = get_aux_state_mut(app_delegate).activate_ignoring_other_apps;
-      #[allow(deprecated)]
-      ns_app.activateIgnoringOtherApps(ignore);
+    if let Some(mtm) = MainThreadMarker::new() {
+      unsafe {
+        let ns_app = NSApp(mtm);
+        window_activation_hack(&ns_app);
+        let ignore = get_aux_state_mut(app_delegate).activate_ignoring_other_apps;
+        #[allow(deprecated)]
+        ns_app.activateIgnoringOtherApps(ignore);
 
-      let dock_visible = get_aux_state_mut(app_delegate).dock_visibility;
-      if !dock_visible {
-        set_dock_visibility(app_delegate, dock_visible);
+        let dock_visible = get_aux_state_mut(app_delegate).dock_visibility;
+        if !dock_visible {
+          set_dock_visibility(app_delegate, dock_visible);
+        }
       }
-    };
+    }
     HANDLER.set_ready();
     HANDLER.waker().start();
     HANDLER.set_in_callback(true);
@@ -401,14 +402,15 @@ impl AppState {
     HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::RedrawEventsCleared));
     HANDLER.set_in_callback(false);
     if HANDLER.should_exit() {
-      unsafe {
-        let mtm = MainThreadMarker::new().unwrap();
-        let app = NSApp(mtm);
-        let _pool = NSAutoreleasePool::new();
-        let () = msg_send![&app, stop: nil];
-        // To stop event loop immediately, we need to post some event here.
-        post_dummy_event(&app);
-      };
+      if let Some(mtm) = MainThreadMarker::new() {
+        unsafe {
+          let app = NSApp(mtm);
+          let _pool = NSAutoreleasePool::new();
+          let () = msg_send![&app, stop: nil];
+          // To stop event loop immediately, we need to post some event here.
+          post_dummy_event(&app);
+        }
+      }
     }
     HANDLER.update_start_time();
     match HANDLER.get_old_and_new_control_flow() {
@@ -453,17 +455,18 @@ unsafe fn window_activation_hack(ns_app: &NSApplication) {
   }
 }
 fn apply_activation_policy(app_delegate: &Object) {
-  unsafe {
-    let mtm = MainThreadMarker::new().unwrap();
-    let ns_app = NSApp(mtm);
-    // We need to delay setting the activation policy and activating the app
-    // until `applicationDidFinishLaunching` has been called. Otherwise the
-    // menu bar won't be interactable.
-    let act_pol = get_aux_state_mut(app_delegate).activation_policy;
-    ns_app.setActivationPolicy(match act_pol {
-      ActivationPolicy::Regular => NSApplicationActivationPolicy::Regular,
-      ActivationPolicy::Accessory => NSApplicationActivationPolicy::Accessory,
-      ActivationPolicy::Prohibited => NSApplicationActivationPolicy::Prohibited,
-    });
+  if let Some(mtm) = MainThreadMarker::new() {
+    unsafe {
+      let ns_app = NSApp(mtm);
+      // We need to delay setting the activation policy and activating the app
+      // until `applicationDidFinishLaunching` has been called. Otherwise the
+      // menu bar won't be interactable.
+      let act_pol = get_aux_state_mut(app_delegate).activation_policy;
+      ns_app.setActivationPolicy(match act_pol {
+        ActivationPolicy::Regular => NSApplicationActivationPolicy::Regular,
+        ActivationPolicy::Accessory => NSApplicationActivationPolicy::Accessory,
+        ActivationPolicy::Prohibited => NSApplicationActivationPolicy::Prohibited,
+      });
+    }
   }
 }
